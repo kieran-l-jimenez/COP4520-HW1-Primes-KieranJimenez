@@ -1,60 +1,42 @@
+import java.awt.desktop.SystemEventListener;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.PriorityQueue;
 
 
 public class primes {
-    static int limit = (int) Math.pow(10, 8);
+    static int limit = (int) Math.pow(10, 2);
     static boolean[] primesBoolean = new boolean[limit+1];//starts as all false, false values indicate primes/potential primes
     static PrimesList primesList = new PrimesList();
     static primesThread[] threadArray = new primesThread[8];//consider changing to list, maybe move this into its own class that can
 
     public static void main(String[] args) throws InterruptedException {
-            //hold each threads max value checked and active flags if I can't get threads to read each other correctly
         long startTime = System.currentTimeMillis();
-        //loop that creates *creates* each thread
-        //OPTION B : new Runnable () {
-        //each thread has an active flag and a min and max value checked variable and functions to return those values
-        // TODO change it so it doesn't check for multiples of invalid numbers, ie composite ones
-        // value = getAndIncrement counter (next unmarked boolean index)
-        // if value is not less than minimum of the max value checked every active thread, yield
-        // if primesBoolean[value] = *false, this index has been marked as composite*, continue, get new value;
-        // update three thread variables
-        // add value to PQ and sum
-        // while value < primesBoolean.length
-        // value+= minValueChecked (note, this is the starting point)
-        // primesBoolean[value] = false
-        // update max value checked
-        // loop back to getAndIncrement counter
-        // NOTE does this approach mean I'll have to pass through the entire array again
-        // }
 
         for (int i = 0; i < threadArray.length; i++) {
             threadArray[i] = new primesThread();
         }
 
-        //loop that *starts* each thread
         for (primesThread thread : threadArray) {
             thread.start();
         }
-        //loop that *joins* each thread from main thread, won't continue until all threads done
+
         for (Thread thread : threadArray) {
             thread.join();
         }
-        // loop through priority queue, grab top ten values
+        System.out.println("TEST back in main");
+
         int[] topPrimes = primesList.getTopTen();
-        // sum should have been updated each time a prime was added to the PQ
-        //subtraction to find execution time
+
         long executionTime = System.currentTimeMillis() - startTime;
-        // create file and write results
-        //"<exec time> <number of primes> <sum of all primes>
-        // <lowest to the highest list of top ten primes>"
+
         StringBuilder stringOut = new StringBuilder();
         stringOut.append(executionTime).append(" ").append(primesList.PQ.size()).append(" ").append(primesList.sum);
         stringOut.append("\n");
         for (int topPrime : topPrimes) {
-            stringOut.append(topPrime);
+            stringOut.append(topPrime).append(" ");
         }
         File myFile = new File("primes.txt");
         try {
@@ -65,41 +47,51 @@ public class primes {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        System.out.print(stringOut);
     }
 
     static class PrimesList {
-        int sum;
+        long sum;
         PriorityQueue<Integer> PQ;
         int booleanIdx;
 
         PrimesList() {
             sum = 0;
-            PQ = new PriorityQueue<>();//TODO add custom comparator that arranges high to low? or maybe change to List, order it, and access going up the tail?
+            PQ = new PriorityQueue<>(11, Comparator.reverseOrder());
             booleanIdx = 2;
         }
 
         public void addPrime (Integer primeToAdd) {
             synchronized(this) {
-                this.sum += primeToAdd;
+                this.sum += (long) primeToAdd;
                 PQ.add(primeToAdd);
             }
         }
         public int getAndIncrement () {
+
             synchronized (this) {
-                int temp = booleanIdx;
-                for (int i = booleanIdx; i < primesBoolean.length; i++) {
-                    if (primesBoolean[i]) {
+                return booleanIdx++;
+                /*int temp = booleanIdx;
+                for (int i = booleanIdx + 1; i < primesBoolean.length; i++) {
+                    //if (!primesBoolean[i]) {
                         booleanIdx = i;
                         break;
-                    }
+                    //}
+                    //if (i + 2 >= primesBoolean.length) {//TODO might remove this
+                      //  temp = primesBoolean.length + 1;
+                       // break;
+                    //}
                 }
-                return temp;
+                System.out.println("TEST getAndIncrement booleanIdx: " + booleanIdx + " temp: " + temp);
+                return temp;*/
             }
         }
-        public int[] getTopTen () {
+        public int[] getTopTen () {//TODO consider replacing with getting a sub-array of the last 10 and removing the reverse comparable
             int[] retArray = new int[10];
             for (int i = 0; i < 10; i++) {
-                retArray[9-i] = PQ.poll();
+                if (PQ.peek() != null) {
+                    retArray[9 - i] = PQ.poll();
+                }
             }
             return retArray;
         }
@@ -114,6 +106,11 @@ public class primes {
             public void run() {
             do {
                 int value = primesList.getAndIncrement();//returns index of next unmarked boolean and moves up
+                if (value >= primesBoolean.length) {
+                    System.out.println("TEST " + this.getId() + " has value " + value + " over " + primesBoolean.length);
+                    break;
+                }
+                System.out.println("TEST " + this.getId() + " has value " + value);
                 int minOfMaxChecking = primesBoolean.length;
                 do {// if value is not less than minimum of the max value checked in every active thread, wait
                     for (primesThread thread : threadArray) {
@@ -123,21 +120,28 @@ public class primes {
                     }
                 } while (value >= minOfMaxChecking);
                 if (primesBoolean[value]) {// if primesBoolean[value] = *false, this index has been marked as composite*, continue, get new value;
+                    System.out.println("TEST continue on " + value);
                     continue;
                 }
-                // update three thread variables
+
                 activeFlag = true;
                 minValueChecked = value;
                 maxValueChecked = value;
-                // add value to PQ and sum
+
+                System.out.println("Thread " + this.getId() + " adding prime " + value);
                 primesList.addPrime(value);
-                // while value < primesBoolean.length
+
                 while (value < primesBoolean.length) {//continue for every multiple of the prime below 10^8
-                    value += minValueChecked;//minValueChecked is the prime number, starting point
                     primesBoolean[value] = true;//composite value, multiple of minValueChecked, a prime number
                     maxValueChecked = value;//update max value checked so next thread can see if its value has been checked for being composite
+                    value += minValueChecked;//minValueChecked is the prime number, starting point
                 }
+                minValueChecked = 0;
+                maxValueChecked = primesBoolean.length+1;
+                activeFlag = false;
             } while (minValueChecked < limit);
+            System.out.println(this.getId() + " breaks loop");
+            //
         }
             public boolean getActive () {
             return activeFlag;
