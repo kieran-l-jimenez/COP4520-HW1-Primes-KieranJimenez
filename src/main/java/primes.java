@@ -1,4 +1,3 @@
-import java.awt.desktop.SystemEventListener;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -10,7 +9,7 @@ public class primes {
     static int limit = (int) Math.pow(10, 2);
     static boolean[] primesBoolean = new boolean[limit+1];//starts as all false, false values indicate primes/potential primes
     static PrimesList primesList = new PrimesList();
-    static primesThread[] threadArray = new primesThread[8];//consider changing to list, maybe move this into its own class that can
+    static primesThread[] threadArray = new primesThread[1];//consider changing to list, maybe move this into its own class that can
 
     public static void main(String[] args) throws InterruptedException {
         long startTime = System.currentTimeMillis();
@@ -28,22 +27,24 @@ public class primes {
         }
         System.out.println("TEST back in main");
 
+        int numberPrimes = primesList.PQ.size();
         int[] topPrimes = primesList.getTopTen();
 
         long executionTime = System.currentTimeMillis() - startTime;
 
         StringBuilder stringOut = new StringBuilder();
-        stringOut.append(executionTime).append(" ").append(primesList.PQ.size()).append(" ").append(primesList.sum);
+        stringOut.append(executionTime).append(" ").append(numberPrimes).append(" ").append(primesList.sum);
         stringOut.append("\n");
-        for (int topPrime : topPrimes) {
+        for (Object topPrime : topPrimes) {
             stringOut.append(topPrime).append(" ");
         }
         File myFile = new File("primes.txt");
         try {
-            if (myFile.createNewFile()) {
-                FileWriter myWriter = new FileWriter("primes.txt");
-                myWriter.write(stringOut.toString());
-            }
+            myFile.createNewFile();
+            FileWriter myWriter = new FileWriter("primes.txt");
+            myWriter.write(stringOut.toString());
+            myWriter.close();
+
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -124,9 +125,11 @@ public class primes {
                     continue;
                 }
 
-                activeFlag = true;
-                minValueChecked = value;
-                maxValueChecked = value;
+                synchronized (this) {
+                    activeFlag = true;
+                    minValueChecked = value;
+                    maxValueChecked = value;
+                }
 
                 System.out.println("Thread " + this.getId() + " adding prime " + value);
                 primesList.addPrime(value);
@@ -141,7 +144,16 @@ public class primes {
                 activeFlag = false;
             } while (minValueChecked < limit);
             System.out.println(this.getId() + " breaks loop");
-            //
+            while (true) {//break and stop running once every thread is no longer active again
+                boolean x = false;
+                for (primes.primesThread primesThread : threadArray) {
+                    if (primesThread.activeFlag) {
+                        x = true;
+                    }
+                }
+                if (x) continue;
+                break;
+            }
         }
             public boolean getActive () {
             return activeFlag;
