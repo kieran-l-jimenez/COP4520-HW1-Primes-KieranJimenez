@@ -6,7 +6,7 @@ import java.util.PriorityQueue;
 
 
 public class primes {
-    static int limit = (int) Math.pow(10, 7);
+    static int limit = (int) Math.pow(10, 2);
     static boolean[] primesBoolean = new boolean[limit+1];//starts as all false, false values indicate primes/potential primes
     static PrimesList primesList = new PrimesList();
     static primesThread[] threadArray = new primesThread[8];//consider changing to list, maybe move this into its own class that can
@@ -20,13 +20,11 @@ public class primes {
 
         for (primesThread thread : threadArray) {
             thread.start();
-            Thread.yield();
         }
 
         for (Thread thread : threadArray) {
             thread.join();
         }
-        //System.out.println("TEST back in main");
 
         int numberPrimes = primesList.PQ.size();
         int[] topPrimes = primesList.getTopTen();
@@ -64,27 +62,24 @@ public class primes {
         }
 
         public boolean addPrime (Integer primeToAdd) {
-            synchronized(this) {
                 if (primesBoolean[primeToAdd]) {
                     return false;
                 }
-                for (int i = 0; i < threadArray.length; i++)
-                {
-                    if (threadArray[i].getActive() && primeToAdd%threadArray[i].minValueChecked == 0 && primeToAdd!=threadArray[i].minValueChecked)
-                    {
+                for (primes.primesThread primesThread : threadArray) {
+                    if (primeToAdd % primesThread.minValueChecked == 0 && primeToAdd != primesThread.minValueChecked) {
                         return false;
                     }
                 }
-                this.sum += (long) primeToAdd;
-                PQ.add(primeToAdd);
+                synchronized (this) {
+                    this.sum += (long) primeToAdd;
+                    PQ.add(primeToAdd);
+                }
                 return true;
-            }
         }
         public int getAndIncrement () {
 
             synchronized (this) {
                 for (int i = booleanIdx; i < primesBoolean.length; i++) {
-                    //System.out.println("TEST i = " + i + " ["+primesBoolean[i]+"]");
                     if (!primesBoolean[i]) {
                         boolean flag = false;
                         for (primes.primesThread primesThread : threadArray) {
@@ -108,25 +103,10 @@ public class primes {
                         return i;
                     }
                 }
-
-                //return booleanIdx++;
-                /*int temp = booleanIdx;
-                for (int i = booleanIdx + 1; i < primesBoolean.length; i++) {
-                    //if (!primesBoolean[i]) {
-                        booleanIdx = i;
-                        break;
-                    //}
-                    //if (i + 2 >= primesBoolean.length) {//TODO might remove this
-                      //  temp = primesBoolean.length + 1;
-                       // break;
-                    //}
-                }
-                System.out.println("TEST getAndIncrement booleanIdx: " + booleanIdx + " temp: " + temp);
-                return temp;*/
             }
             return primesBoolean.length+1;
         }
-        public int[] getTopTen () {//TODO consider replacing with getting a sub-array of the last 10 and removing the reverse comparable
+        public int[] getTopTen () {
             int[] retArray = new int[10];
             for (int i = 0; i < 10; i++) {
                 if (PQ.peek() != null) {
@@ -144,7 +124,6 @@ public class primes {
 
             @Override
             public void run() {
-
             do {
                 int value = primesList.getAndIncrement();//returns index of next unmarked boolean and moves up
                 synchronized (this) {
@@ -152,51 +131,21 @@ public class primes {
                     minValueChecked = value;
                     maxValueChecked = value;
                 }
-                Thread.yield();
                 if (value >= primesBoolean.length) {
-                    //System.out.println("TEST " + this.getId() + " has value " + value + " over " + primesBoolean.length);
                     break;
                 }
-                //System.out.println("TEST " + this.getId() + " has value " + value);
                 try {
                     sleep(0, 1);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-                //int minOfMaxChecking = primesBoolean.length;
-                /*do {// if value is not less than minimum of the max value checked in every active thread, wait
-                    System.out.println(this.getId() + " attempting to continue");
-                    for (primesThread thread : threadArray) {
-                        System.out.println(this.getId() + " checking thread " + thread.getId() + " with max " + thread.getMax());
-                        if (thread.getActive() && thread.getMax() < minOfMaxChecking) {
-                            minOfMaxChecking = thread.getMax();
-                        }
-                    }
-                } while (value >= minOfMaxChecking);*/
 
-                /*for (int i = 0; i < threadArray.length; i++) {
-                    if (threadArray[i].minValueChecked != value && value%threadArray[i].minValueChecked == 0)
-                        break;
-                }*/
-                /*for (int i = 0; i < threadArray.length; i++) {
-                    if (threadArray[i].getActive() && value > threadArray[i].getMax())
-                        i = 0;
-                }
-                if (primesBoolean[value]) {// if primesBoolean[value] = *false, this index has been marked as composite*, continue, get new value;
-                    System.out.println("TEST continue on " + value);
-                    continue;
-                }*/
-
-
-                //Thread.yield();
-
-                //System.out.println("Thread " + this.getId() + " adding prime " + value);
                 if (!primesList.addPrime(value))
                     break;
 
                 while (value < primesBoolean.length) {//continue for every multiple of the prime below 10^8
                     primesBoolean[value] = true;//composite value, multiple of minValueChecked, a prime number
-                    maxValueChecked = value;//update max value checked so next thread can see if its value has been checked for being composite
+                    //maxValueChecked = value;//update max value checked so next thread can see if its value has been checked for being composite
                     value += minValueChecked;//minValueChecked is the prime number, starting point
                 }
                 minValueChecked = primesList.booleanIdx-1;
